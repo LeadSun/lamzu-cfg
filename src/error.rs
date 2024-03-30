@@ -6,6 +6,6 @@ pub enum Error {
     #[error("No compatible devices found")]
     NoDevice,
 
-    #[error("Failed to connect to HID device")]
-    HidConnect(#[from] HidError),
+    #[error("USB HID API error")]
+    Hid(#[from] HidError),
 }
