@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 hidapi = "2.6"
 thiserror = "1.0"
+binrw = "0.13"

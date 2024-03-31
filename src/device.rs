@@ -1,3 +1,6 @@
+mod checksum;
+mod report;
+
 use hidapi::{HidApi, HidDevice};
 
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
