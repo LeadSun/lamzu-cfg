@@ -1,3 +1,4 @@
+mod data;
 mod device;
 pub use device::first_compatible_device;
 mod error;
