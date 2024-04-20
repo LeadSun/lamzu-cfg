@@ -1,4 +1,4 @@
-use crate::device::checksum::Checksum;
+use crate::device::atlantis::Checksum;
 use binrw::{
     binrw,
     meta::{ReadEndian, WriteEndian},

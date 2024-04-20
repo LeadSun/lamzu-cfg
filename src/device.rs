@@ -1,5 +1,4 @@
-mod checksum;
-mod report;
+mod atlantis;
 
 use hidapi::{HidApi, HidDevice};
 
