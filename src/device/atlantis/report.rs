@@ -29,7 +29,7 @@ pub struct StandardReport {
     error: u8,
 
     /// Address to read data from / write data to in mouse storage. Seems to only
-    /// be used for `ReadSetting` and `WriteSetting` commands.
+    /// be used for `ReadProfileData` and `WriteProfileData` commands.
     address: u16,
 
     #[br(temp)]
@@ -46,21 +46,22 @@ pub struct StandardReport {
 }
 
 impl StandardReport {
-    /// Constructs a report for requesting to read `length` bytes of settings
-    /// data from `address`.
-    pub fn read_setting(address: usize, length: usize) -> Self {
+    /// Constructs a report for requesting to read `length` bytes of data from
+    /// the active profile at `address`.
+    pub fn read_profile_data(address: usize, length: usize) -> Self {
         Self {
-            cmd: Command::ReadSetting,
+            cmd: Command::ReadProfileData,
             error: 0,
             address: address as u16,
             data: vec![0; length as usize],
         }
     }
 
-    /// Constructs a report for writing `data` to `address`.
-    pub fn write_setting(address: usize, data: Vec<u8>) -> Self {
+    /// Constructs a report for writing `data` to the active profile at
+    /// `address`.
+    pub fn write_profile_data(address: usize, data: Vec<u8>) -> Self {
         Self {
-            cmd: Command::WriteSetting,
+            cmd: Command::WriteProfileData,
             error: 0,
             address: address as u16,
             data,
@@ -123,11 +124,11 @@ impl Report for StandardReport {
 #[brw(big, repr = u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Command {
-    /// Write settings data at address.
-    WriteSetting = 7,
+    /// Write profile data to address within active profile.
+    WriteProfileData = 7,
 
-    /// Read settings data at address.
-    ReadSetting = 8,
+    /// Read profile data from address within active profile.
+    ReadProfileData = 8,
 
     /// Read index of active profile.
     ReadActiveProfile = 14,
