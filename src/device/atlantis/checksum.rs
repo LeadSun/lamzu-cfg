@@ -7,8 +7,14 @@ use std::io::{Read, Seek, SeekFrom, Write};
 /// The checksum is implemented as the wrapping subtraction of bytes from a
 /// starting value of `85`.
 pub struct Checksum<T> {
+    /// Wrapped stream.
     inner: T,
+
+    // Checksum calculated over read / written bytes.
     checksum: u8,
+
+    /// Position of next byte to hash.
+    position: u64,
 }
 
 impl<T: Seek> Checksum<T> {
@@ -16,6 +22,7 @@ impl<T: Seek> Checksum<T> {
         Self {
             inner,
             checksum: 85,
+            position: 0,
         }
     }
 
@@ -24,13 +31,19 @@ impl<T: Seek> Checksum<T> {
     }
 }
 
-impl<T: Read> Read for Checksum<T> {
+impl<T: Read + Seek> Read for Checksum<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let rc = self.inner.read(buf);
-        for byte in buf {
-            self.checksum = self.checksum.wrapping_sub(*byte);
+        let position = self.inner.stream_position()?;
+        let size = self.inner.read(buf)?;
+
+        // Make sure that read bytes aren't checksummed more than once.
+        for (i, byte) in buf.iter().enumerate() {
+            if position + i as u64 >= self.position {
+                self.checksum = self.checksum.wrapping_sub(*byte);
+            }
         }
-        rc
+        self.position = position + size as u64;
+        Ok(size)
     }
 }
 
