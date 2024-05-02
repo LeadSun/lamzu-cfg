@@ -26,8 +26,8 @@ report ID byte, with a format as follows:
 
 **Checksums**
 
-Checksums are calculated as a wrapping subtraction of bytes from an initial
-value of `85` (`0x55`).
+Checksums are calculated as a sum complement with an initial value of 171 (or
+181 for macros).
 
 **Endianness**
 

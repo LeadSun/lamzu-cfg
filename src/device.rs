@@ -1,5 +1,7 @@
 mod atlantis;
+mod checksum;
 
+use binrw::{BinRead, BinWrite};
 use hidapi::{HidApi, HidDevice};
 
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
@@ -7,6 +9,11 @@ use hidapi::{HidApi, HidDevice};
 const VENDOR_ID: u16 = 0x3554;
 const SUPPORTED_PRODUCTS: [u16; 2] = [0xf50d, 0xf50f];
 const REPORT_ID: u8 = 8;
+
+/// Trait for types implementing both `BinRead` and `BinWrite`.
+pub trait BinRw: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()> {}
+
+impl<T: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()>> BinRw for T {}
 
 /// Finds and connects to the first compatible HID device.
 ///

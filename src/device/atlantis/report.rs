@@ -1,4 +1,5 @@
-use crate::device::atlantis::Checksum;
+use crate::device::atlantis::Sum171;
+use crate::device::checksum::{self, Algorithm};
 use binrw::{
     binrw,
     meta::{ReadEndian, WriteEndian},
@@ -6,6 +7,8 @@ use binrw::{
 };
 use hidapi::HidDevice;
 use std::io::Cursor;
+
+type Checksummer<T> = checksum::Stream<T, Sum171>;
 
 /// For all USB HID reports.
 pub trait Report {
@@ -18,7 +21,7 @@ pub trait Report {
 
 /// The standard report used for both requests and responses.
 #[binrw]
-#[brw(big, stream = s, map_stream = Checksum::new)]
+#[brw(big, stream = s, map_stream = Checksummer::new)]
 #[derive(Debug, Clone)]
 pub struct StandardReport {
     // Attach report ID (`magic`) here so it's included in the checksum.
@@ -40,8 +43,8 @@ pub struct StandardReport {
     #[brw(pad_size_to = 10, assert(data.len() <= 10))]
     data: Vec<u8>,
 
-    #[br(temp, assert(s.checksum() == 0, "Bad checksum"))]
-    #[bw(calc(s.checksum()))]
+    #[br(temp, assert(s.checksum().is_valid(), "Bad checksum"))]
+    #[bw(calc(s.checksum().finish()))]
     _checksum: u8,
 }
 
