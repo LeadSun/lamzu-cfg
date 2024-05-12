@@ -35,7 +35,7 @@ impl<S: Read + Seek, A: Algorithm> Read for Stream<S, A> {
         let size = self.inner.read(buf)?;
 
         // Make sure that read bytes aren't checksummed more than once.
-        for (i, byte) in buf.iter().enumerate() {
+        for (i, byte) in buf[..size].iter().enumerate() {
             if position + i as u64 >= self.position {
                 self.checksum.write(&[*byte]);
             }
