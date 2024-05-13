@@ -2,12 +2,15 @@ mod atlantis;
 mod checksum;
 
 use binrw::{BinRead, BinWrite};
-use hidapi::{HidApi, HidDevice};
+use hidapi::{DeviceInfo, HidApi, HidDevice};
 
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
 // similar in other Lamzu mice but needs testing.
 const VENDOR_ID: u16 = 0x3554;
-const SUPPORTED_PRODUCTS: [u16; 2] = [0xf50d, 0xf50f];
+const SUPPORTED_PRODUCTS: [u16; 2] = [
+    0xf50d, // Atlantis Mini Pro receiver.
+    0xf50f, // Atlantis Mini Pro.
+];
 const REPORT_ID: u8 = 8;
 
 /// Trait for types implementing both `BinRead` and `BinWrite`.
@@ -15,23 +18,84 @@ pub trait BinRw: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()
 
 impl<T: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()>> BinRw for T {}
 
-/// Finds and connects to the first compatible HID device.
-///
-/// Matches based on vendor ID, product ID, and supported HID report ID.
-pub fn first_compatible_device(api: &HidApi) -> crate::Result<HidDevice> {
-    for device_info in api.device_list() {
-        if device_info.vendor_id() == VENDOR_ID
-            && SUPPORTED_PRODUCTS.contains(&device_info.product_id())
-        {
-            let device = device_info.open_device(&api)?;
-            let mut report_descriptor = [0; hidapi::MAX_REPORT_DESCRIPTOR_SIZE];
-            let len = device.get_report_descriptor(&mut report_descriptor)?;
-            if has_report(&report_descriptor[..len], REPORT_ID) {
-                return Ok(device);
+/// HID device compatibility with this library.
+#[derive(Debug)]
+pub enum Compatibility {
+    /// Device has correct vendor ID and report descriptor, and devices with
+    /// this product ID have been tested to work.
+    Tested(HidDevice),
+
+    /// Device has correct vendor ID and report descriptor, but devices with
+    /// this product ID have not been tested. Use at your own risk.
+    Untested(HidDevice),
+
+    /// Device has incorrect vendor ID or report descriptor.
+    Incompatible(DeviceInfo),
+}
+
+/// Returns `Compatibility` for each detected HID device.
+pub fn device_compatibility(api: &HidApi) -> Vec<Compatibility> {
+    let mut device_infos = api.device_list().collect::<Vec<_>>();
+
+    // Deduplicate based on hidraw path.
+    device_infos.sort_by(|a, b| a.path().partial_cmp(b.path()).unwrap());
+    device_infos.dedup_by(|a, b| a.path() == b.path());
+
+    device_infos
+        .into_iter()
+        .cloned()
+        .map(|device_info| {
+            if device_info.vendor_id() == VENDOR_ID {
+                let mut report_descriptor = [0; hidapi::MAX_REPORT_DESCRIPTOR_SIZE];
+                match device_info.open_device(&api).and_then(|device| {
+                    device
+                        .get_report_descriptor(&mut report_descriptor)
+                        .map(|len| (device, len))
+                }) {
+                    Ok((device, desc_len)) => {
+                        if has_report(&report_descriptor[..desc_len], REPORT_ID) {
+                            if SUPPORTED_PRODUCTS.contains(&device_info.product_id()) {
+                                Compatibility::Tested(device)
+                            } else {
+                                Compatibility::Untested(device)
+                            }
+                        } else {
+                            // Incompatible due to missing required report.
+                            Compatibility::Incompatible(device_info)
+                        }
+                    }
+
+                    Err(error) => {
+                        println!("USB HID device error: {}", error);
+
+                        // Incompatible due to error.
+                        Compatibility::Incompatible(device_info)
+                    }
+                }
+            } else {
+                // Incompatible due to incorrect vendor.
+                Compatibility::Incompatible(device_info)
             }
+        })
+        .collect()
+}
+
+/// Returns the first compatible device, preferring devices tested to work.
+pub fn first_compatible_device(api: &HidApi) -> Option<Compatibility> {
+    let mut untested = None;
+    for compat in device_compatibility(api) {
+        match compat {
+            Compatibility::Tested(_) => return Some(compat),
+            Compatibility::Untested(_) => {
+                if untested.is_none() {
+                    untested = Some(compat)
+                }
+            }
+            Compatibility::Incompatible(_) => {}
         }
     }
-    Err(crate::Error::NoDevice)
+
+    untested
 }
 
 /// Tests whether `report_descriptor` contains `report_id`.
