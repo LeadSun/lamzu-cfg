@@ -27,8 +27,8 @@ pub enum Action {
 
     Fire { interval: u8, repeat: u8 },
 
-    Combo(Vec<KeyEvent>),
-    Macro(Macro),
+    Combo { events: Vec<KeyEvent> },
+    Macro { name: String },
 }
 
 /// Key pressed / released events.
@@ -43,13 +43,6 @@ pub struct KeyEvent {
 pub struct MacroEvent {
     pub key_event: KeyEvent,
     pub delay_ms: u16,
-}
-
-/// A sequence of events that can be mapped to a button.
-#[derive(Debug, Clone)]
-pub struct Macro {
-    pub name: String,
-    pub events: Vec<MacroEvent>,
 }
 
 /// Mouse resolution.
