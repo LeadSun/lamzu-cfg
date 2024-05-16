@@ -1,4 +1,5 @@
 mod profile_rw;
+mod raw_data;
 mod report;
 
 use crate::device::checksum;

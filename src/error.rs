@@ -9,6 +9,9 @@ pub enum Error {
     #[error("USB HID API error")]
     Hid(#[from] HidError),
 
+    #[error("Mouse profile data conversion error")]
+    InvalidConversion(String),
+
     #[error("IO error")]
     Io(#[from] std::io::Error),
 
