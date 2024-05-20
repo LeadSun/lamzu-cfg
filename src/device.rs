@@ -1,6 +1,7 @@
 mod atlantis;
 mod checksum;
 
+use crate::profile::Profile;
 use binrw::{BinRead, BinWrite};
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 
@@ -12,6 +13,28 @@ const SUPPORTED_PRODUCTS: [u16; 2] = [
     0xf50f, // Atlantis Mini Pro.
 ];
 const REPORT_ID: u8 = 8;
+
+/// Trait for supported mice that can be configured via profiles.
+pub trait Mouse {
+    /// Returns a specific profile from the device.
+    fn profile(&self, device: &HidDevice, index: usize) -> crate::Result<Profile>;
+
+    /// Write to a specific profile on the device.
+    fn set_profile(&self, device: &HidDevice, index: usize, profile: &Profile)
+        -> crate::Result<()>;
+
+    /// Returns all profiles from the device.
+    fn profiles(&self, device: &HidDevice) -> crate::Result<Vec<Profile>>;
+
+    /// Write multiple profiles to the device.
+    fn set_profiles(&self, device: &HidDevice, profiles: &[Profile]) -> crate::Result<()>;
+
+    /// Returns the index of the currently active profile.
+    fn active_profile_index(&self, device: &HidDevice) -> crate::Result<usize>;
+
+    /// Set the active profile by index.
+    fn set_active_profile_index(&self, device: &HidDevice, index: usize) -> crate::Result<()>;
+}
 
 /// Trait for types implementing both `BinRead` and `BinWrite`.
 pub trait BinRw: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()> {}
