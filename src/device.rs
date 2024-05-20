@@ -1,4 +1,5 @@
 mod atlantis;
+pub use atlantis::Atlantis;
 mod checksum;
 
 use crate::profile::Profile;
