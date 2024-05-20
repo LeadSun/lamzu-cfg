@@ -4,7 +4,7 @@ mod raw_profile;
 mod report;
 
 use crate::device::{checksum, Mouse};
-use crate::profile::Profile;
+use crate::Profile;
 use hidapi::HidDevice;
 use raw_profile::RawProfile;
 use report::{make_request, StandardReport};

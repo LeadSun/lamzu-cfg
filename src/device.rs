@@ -2,7 +2,7 @@ mod atlantis;
 pub use atlantis::Atlantis;
 mod checksum;
 
-use crate::profile::Profile;
+use crate::Profile;
 use binrw::{BinRead, BinWrite};
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 

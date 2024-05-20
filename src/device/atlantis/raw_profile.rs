@@ -1,8 +1,7 @@
-use crate::data::*;
 use crate::device::atlantis::profile_rw::{ProfileReader, ProfileWriter};
 use crate::device::atlantis::{raw_data::*, Sum171, Sum181};
 use crate::device::{checksum, BinRw};
-use crate::profile::Profile;
+use crate::{data::*, Profile};
 use binrw::{binrw, BinRead, BinWrite};
 use hidapi::HidDevice;
 use std::collections::HashMap;
@@ -293,7 +292,7 @@ impl<T: BinRw + Clone, A: checksum::Algorithm8 + Default> From<T> for Setting<T,
 
 /// Converts actions, combos, and macros from a profile to their raw versions.
 fn profile_to_raw_actions_combos_macros(
-    profile: &crate::profile::Profile,
+    profile: &Profile,
 ) -> crate::Result<(Vec<RawAction>, Vec<Option<RawCombo>>, Vec<Option<RawMacro>>)> {
     // Each combo slot is tied to the button action of the same index.
     let mut combos: Vec<Option<RawCombo>> = vec![None; profile.button_actions.len()];
