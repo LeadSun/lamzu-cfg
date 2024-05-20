@@ -1,9 +1,10 @@
 //! Standard mouse configuration data types.
 
 use keycode::{KeyMappingId, KeyState};
+use serde::{Deserialize, Serialize};
 
 /// Mouse actions that can be mapped to buttons.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Action {
     Disabled,
 
@@ -32,21 +33,21 @@ pub enum Action {
 }
 
 /// Key pressed / released events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub struct KeyEvent {
     pub key: KeyMappingId,
     pub state: KeyState,
 }
 
 /// Key pressed / released events with a delay.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct MacroEvent {
     pub key_event: KeyEvent,
     pub delay_ms: u16,
 }
 
 /// Mouse resolution.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub enum Dpi {
     /// Both x and y DPI are the same.
     Linked(u16),
@@ -55,7 +56,7 @@ pub enum Dpi {
     Independent(u16, u16),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct Color {
     pub red: u8,
     pub green: u8,
