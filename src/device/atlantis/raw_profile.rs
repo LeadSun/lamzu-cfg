@@ -1,8 +1,9 @@
 use crate::data::*;
-use crate::device::atlantis::{profile_rw::ProfileReader, raw_data::*, Sum171, Sum181};
+use crate::device::atlantis::profile_rw::{ProfileReader, ProfileWriter};
+use crate::device::atlantis::{raw_data::*, Sum171, Sum181};
 use crate::device::{checksum, BinRw};
 use crate::profile::Profile;
-use binrw::{binrw, BinRead};
+use binrw::{binrw, BinRead, BinWrite};
 use hidapi::HidDevice;
 use std::collections::HashMap;
 use std::fmt;
@@ -98,6 +99,15 @@ impl RawProfile {
         }
 
         Ok(profile)
+    }
+
+    pub fn write_to_mouse(&self, device: &HidDevice, num_buttons: u8) -> crate::Result<()> {
+        self.write_be_args(
+            &mut ProfileWriter::new(device, 0),
+            binrw::args! { num_buttons },
+        )?;
+
+        Ok(())
     }
 }
 
