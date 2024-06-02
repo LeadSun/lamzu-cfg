@@ -90,7 +90,7 @@ pub fn device_compatibility(api: &HidApi) -> Vec<Compatibility> {
                     }
 
                     Err(error) => {
-                        println!("USB HID device error: {}", error);
+                        eprintln!("USB HID device error: {}", error);
 
                         // Incompatible due to error.
                         Compatibility::Incompatible(device_info)
