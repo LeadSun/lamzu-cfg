@@ -67,7 +67,7 @@ impl Mouse for Atlantis {
             .into_iter()
             .map(|i| {
                 self.set_active_profile_index(device, i)?;
-                RawProfile::read_from_mouse(device, 6)?.try_into()
+                RawProfile::read_from_mouse(device, NUM_BUTTONS)?.try_into()
             })
             .collect();
         self.set_active_profile_index(device, active_profile)?;
@@ -95,8 +95,14 @@ impl Mouse for Atlantis {
     }
 
     fn set_active_profile_index(&self, device: &HidDevice, index: usize) -> crate::Result<()> {
-        make_request(device, &StandardReport::write_active_profile(index as u8))?.data()?;
-
-        Ok(())
+        if index < 4 {
+            make_request(device, &StandardReport::write_active_profile(index as u8))?.data()?;
+            Ok(())
+        } else {
+            Err(crate::Error::InvalidConversion(format!(
+                "Profile index '{}' is out of range (0-3)",
+                index
+            )))
+        }
     }
 }
