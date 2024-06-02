@@ -15,6 +15,9 @@ pub enum Error {
     #[error("IO error")]
     Io(#[from] std::io::Error),
 
+    #[error("JSON serialization / deserialization error")]
+    Json(#[from] serde_json::Error),
+
     #[error("Mouse returned an error code")]
     MouseErrorResponse(u8),
 

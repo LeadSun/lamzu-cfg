@@ -22,6 +22,10 @@ struct Cli {
 enum Command {
     /// Read profile(s) from mouse and print
     Get {
+        /// Output profile(s) in JSON instead of RON
+        #[arg(short, long)]
+        json: bool,
+
         /// Read from a specific profile by number
         #[arg(short, long)]
         profile: Option<usize>,
@@ -29,6 +33,10 @@ enum Command {
 
     /// Write profile(s) to mouse
     Set {
+        /// Input profile(s) in JSON instead of RON
+        #[arg(short, long)]
+        json: bool,
+
         /// Write to a specific profile by number
         #[arg(short, long)]
         profile: Option<usize>,
@@ -102,26 +110,36 @@ fn main() -> lamzu_cfg::Result<()> {
     eprintln!("You may need to move your mouse to wake it up...");
 
     match args.command {
-        Command::Get { profile } => {
+        Command::Get { json, profile } => {
             if let Some(profile_number) = profile {
                 // Profiles numbered from 1 for CLI.
                 let profile = Atlantis.profile(&device, profile_number.saturating_sub(1))?;
                 eprintln!("Profile {} retrieved from mouse:", profile_number);
+
                 println!(
                     "{}",
-                    ron::ser::to_string_pretty(&profile, ron::ser::PrettyConfig::default())?
+                    if json {
+                        serde_json::to_string_pretty(&profile)?
+                    } else {
+                        ron::ser::to_string_pretty(&profile, ron::ser::PrettyConfig::default())?
+                    }
                 );
             } else {
                 let profiles = Atlantis.profiles(&device)?;
                 eprintln!("All profiles retrieved from mouse:");
                 println!(
                     "{}",
-                    ron::ser::to_string_pretty(&profiles, ron::ser::PrettyConfig::default())?
+                    if json {
+                        serde_json::to_string_pretty(&profiles)?
+                    } else {
+                        ron::ser::to_string_pretty(&profiles, ron::ser::PrettyConfig::default())?
+                    }
                 );
             }
         }
 
         Command::Set {
+            json,
             profile,
             file,
             config,
@@ -131,16 +149,23 @@ fn main() -> lamzu_cfg::Result<()> {
                 Atlantis.profile(&device, 0)?;
             }
 
+            let input = get_file_arg_or_stdin(file, config)?;
             if let Some(profile_number) = profile {
-                let profile: Profile =
-                    ron::de::from_str(&get_file_arg_or_stdin(file, config)?).unwrap();
+                let profile: Profile = if json {
+                    serde_json::from_str(&input)?
+                } else {
+                    ron::de::from_str(&input).unwrap()
+                };
 
                 // Profiles numbered from 1 for CLI.
                 Atlantis.set_profile(&device, profile_number.saturating_sub(1), &profile)?;
                 eprintln!("Profile {} configured", profile_number);
             } else {
-                let profiles: Vec<Profile> =
-                    ron::de::from_str(&get_file_arg_or_stdin(file, config)?).unwrap();
+                let profiles: Vec<Profile> = if json {
+                    serde_json::from_str(&input)?
+                } else {
+                    ron::de::from_str(&input).unwrap()
+                };
                 Atlantis.set_profiles(&device, &profiles)?;
                 eprintln!("Profiles configured");
             }
