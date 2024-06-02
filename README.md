@@ -47,6 +47,7 @@ response error code field for errors (`0x00` for OK).
 |Unknown           |`0x04`|`0x0000`           |                               |                               |
 |Set profile data  |`0x07`|`0x0000` - `0x1aff`|[Profile data](#profiles)      |                               |
 |Get profile data  |`0x08`|`0x0000` - `0x1aff`|                               |[Profile data](#profiles)      |
+|Unknown           |`0x0a`|`0x0000`           |                               |                               |
 |Get active profile|`0x0e`|`0x0000`           |                               |Profile index (`0x00` - `0x03`)|
 |Set active profile|`0x0f`|`0x0000`           |Profile index (`0x00` - `0x03`)|                               |
 |Unknown           |`0x12`|`0x0000`           |                               |                               |
