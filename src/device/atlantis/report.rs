@@ -113,8 +113,7 @@ impl StandardReport {
 
     /// Returns whether this report could be a response to the `other` report.
     pub fn is_valid_response_for(&self, other: &Self) -> bool {
-        // Response should have the same command type as the request.
-        self.cmd == other.cmd
+        self.cmd == other.cmd && self.address == other.address
     }
 }
 
@@ -127,17 +126,26 @@ impl Report for StandardReport {
 #[brw(big, repr = u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Command {
+    Unknown2 = 2,
+    Unknown3 = 3,
+    Unknown4 = 4,
+
     /// Write profile data to address within active profile.
     WriteProfileData = 7,
 
     /// Read profile data from address within active profile.
     ReadProfileData = 8,
 
+    Unknown10 = 10,
+
     /// Read index of active profile.
     ReadActiveProfile = 14,
 
     /// Write index of active profile.
     WriteActiveProfile = 15,
+
+    Unknown18 = 18,
+    Unknown23 = 23,
 }
 
 /// Reads a report from the device and attempts to deserialize it as `R`.
