@@ -1,6 +1,5 @@
 mod data;
-mod device;
-pub use device::first_compatible_device;
+pub mod device;
 mod error;
 pub use error::Error;
 mod profile;

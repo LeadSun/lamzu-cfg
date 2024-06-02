@@ -24,6 +24,9 @@ pub enum Error {
     #[error("No valid response for request")]
     NoResponse,
 
+    #[error("RON serialization / deserialization error")]
+    RonError(#[from] ron::Error),
+
     #[error("Received a different report than expected")]
     UnexpectedReport,
 }
