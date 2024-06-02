@@ -1,14 +1,4 @@
-# lamzu-cfg (WIP)
-
-lamzu-cfg is currently a WIP and not usable yet.
-
-This CLI tool provides a way to configure Lamzu mice on linux (currently only
-tested on the Atlantis Mini Pro). The configuration protocol has been
-reverse-engineered from a Lamzu Atlantis Mini Pro, but may work on other Lamzu
-devices.
-
-
-## Protocol
+# Lamzu Atlantis Protocol
 
 Reverse-engineered from a Lamzu Atlantis Mini Pro. All configuration is done via
 HID reports with an ID of `0x08`. These reports are 17 bytes long including the
@@ -31,11 +21,10 @@ Checksums are calculated as a sum complement with an initial value of 171 (or
 
 **Endianness**
 
-The protocol uses mixed endianness for consistency and ease-of-use
-🙃.
+The protocol uses mixed endianness for consistency 🙃.
 
 
-### Commands
+## Commands
 
 Requests will generally trigger a response of the same command type. Check the
 response error code field for errors (`0x00` for OK).
@@ -54,7 +43,7 @@ response error code field for errors (`0x00` for OK).
 |Unknown           |`0x17`|`0x0000`           |                               |                               |
 
 
-### Profiles
+## Profiles
 
 The Lamzu Atlantis supports 4 profiles, but only the active profile can be read
 from / written to. The individual settings of the active profile are stored
@@ -99,7 +88,7 @@ though the Atlantis only has 6 buttons.
 |Macro (x 16)         |384   |[Macro](#macros) mapped to button                                |
 
 
-### Actions
+## Actions
 
 Actions can be mapped to mouse buttons.
 
@@ -129,7 +118,7 @@ Actions can be mapped to mouse buttons.
 Make sure the appropriate key combo or macro is set if mapping a button to one.
 
 
-### Macros
+## Macros
 
 **Key Events**
 
