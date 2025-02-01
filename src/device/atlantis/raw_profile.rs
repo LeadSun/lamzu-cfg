@@ -130,6 +130,9 @@ impl TryFrom<&Profile> for RawProfile {
                 Some(500) => Some(2),
                 Some(250) => Some(4),
                 Some(125) => Some(8),
+                Some(2000) => Some(16),
+                Some(4000) => Some(32),
+                Some(8000) => Some(64),
                 Some(poll_rate) => {
                     return Err(crate::Error::InvalidConversion(format!(
                         "Invalid poll rate value to write to mouse: {}",
@@ -190,6 +193,9 @@ impl TryFrom<RawProfile> for Profile {
                 Some(2) => Some(500),
                 Some(4) => Some(250),
                 Some(8) => Some(125),
+                Some(16) => Some(2000),
+                Some(32) => Some(4000),
+                Some(64) => Some(8000),
                 Some(poll_rate) => {
                     return Err(crate::Error::InvalidConversion(format!(
                         "Invalid raw poll rate value from mouse: {}",
