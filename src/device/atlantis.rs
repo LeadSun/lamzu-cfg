@@ -3,7 +3,7 @@ mod raw_data;
 mod raw_profile;
 mod report;
 
-use crate::device::{checksum, Mouse};
+use crate::device::{checksum, Mouse, Product};
 use crate::Profile;
 use hidapi::HidDevice;
 use raw_profile::RawProfile;
@@ -17,7 +17,15 @@ const NUM_BUTTONS: u8 = 6;
 const NUM_PROFILES: usize = 4;
 
 /// Lamzu Atlantis mouse interface.
-pub struct Atlantis;
+pub struct Atlantis {
+    product: Product,
+}
+
+impl Atlantis {
+    pub fn new(product: Product) -> Self {
+        Self { product }
+    }
+}
 
 impl Mouse for Atlantis {
     fn profile(&self, device: &HidDevice, index: usize) -> crate::Result<Profile> {
@@ -51,7 +59,20 @@ impl Mouse for Atlantis {
             self.set_active_profile_index(device, index)?;
         }
 
-        RawProfile::try_from(profile)?.write_to_mouse(device, NUM_BUTTONS)?;
+        let mut profile = profile.clone();
+
+        // Make sure poll rate doesn't exceed the max for the specific product.
+        if let Some(true) = profile
+            .poll_rate
+            .map(|poll_rate| poll_rate > self.product.max_poll_rate())
+        {
+            eprintln!(
+                "Warning: Desired poll rate is unsupported by mouse. Reducing to {}Hz.",
+                self.product.max_poll_rate()
+            );
+            profile.poll_rate = Some(self.product.max_poll_rate());
+        }
+        RawProfile::try_from(&profile)?.write_to_mouse(device, NUM_BUTTONS)?;
 
         // Switch back to original profile.
         if active_profile != index {

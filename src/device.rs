@@ -5,16 +5,54 @@ mod checksum;
 use crate::Profile;
 use binrw::{BinRead, BinWrite};
 use hidapi::{DeviceInfo, HidApi, HidDevice};
+use std::fmt;
 
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
 // similar in other Lamzu mice but needs testing.
 const VENDOR_ID: u16 = 0x3554;
-const SUPPORTED_PRODUCTS: [u16; 3] = [
-    0xf50d, // Atlantis Pro 1K receiver.
-    0xf50f, // Atlantis Pro (wired).
-    0xf510, // Atlantis Pro 4K receiver.
-];
 const REPORT_ID: u8 = 8;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Product {
+    AtlantisWireless1K,
+    AtlantisWireless4K,
+    AtlantisWired,
+}
+
+impl Product {
+    pub fn from_usb_product(product_id: u16) -> Option<Product> {
+        match product_id {
+            0xf50d => Some(Self::AtlantisWireless1K),
+            0xf510 => Some(Self::AtlantisWireless4K),
+            0xf50f => Some(Self::AtlantisWired),
+            _ => None,
+        }
+    }
+
+    pub fn max_poll_rate(&self) -> u16 {
+        match self {
+            Self::AtlantisWireless1K => 1000,
+            Self::AtlantisWireless4K => 4000,
+            Self::AtlantisWired => 1000,
+        }
+    }
+}
+
+impl Default for Product {
+    fn default() -> Self {
+        Self::AtlantisWireless4K
+    }
+}
+
+impl fmt::Display for Product {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::AtlantisWireless1K => write!(f, "Lamzu Atlantis Wireless (1K)"),
+            Self::AtlantisWireless4K => write!(f, "Lamzu Atlantis Wireless (4K)"),
+            Self::AtlantisWired => write!(f, "Lamzu Atlantis Wired"),
+        }
+    }
+}
 
 /// Trait for supported mice that can be configured via profiles.
 pub trait Mouse {
@@ -48,7 +86,7 @@ impl<T: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()>> BinRw 
 pub enum Compatibility {
     /// Device has correct vendor ID and report descriptor, and devices with
     /// this product ID have been tested to work.
-    Tested(HidDevice),
+    Tested(HidDevice, Product),
 
     /// Device has correct vendor ID and report descriptor, but devices with
     /// this product ID have not been tested. Use at your own risk.
@@ -79,8 +117,10 @@ pub fn device_compatibility(api: &HidApi) -> Vec<Compatibility> {
                 }) {
                     Ok((device, desc_len)) => {
                         if has_report(&report_descriptor[..desc_len], REPORT_ID) {
-                            if SUPPORTED_PRODUCTS.contains(&device_info.product_id()) {
-                                Compatibility::Tested(device)
+                            if let Some(product) =
+                                Product::from_usb_product(device_info.product_id())
+                            {
+                                Compatibility::Tested(device, product)
                             } else {
                                 Compatibility::Untested(device)
                             }
@@ -110,7 +150,7 @@ pub fn first_compatible_device(api: &HidApi) -> Option<Compatibility> {
     let mut untested = None;
     for compat in device_compatibility(api) {
         match compat {
-            Compatibility::Tested(_) => return Some(compat),
+            Compatibility::Tested(_, _) => return Some(compat),
             Compatibility::Untested(_) => {
                 if untested.is_none() {
                     untested = Some(compat)

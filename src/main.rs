@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand, ValueHint};
 use hidapi::HidApi;
-use lamzu_cfg::device::{device_compatibility, Atlantis, Compatibility, Mouse};
+use lamzu_cfg::device::{device_compatibility, Atlantis, Compatibility, Mouse, Product};
 use lamzu_cfg::Profile;
 use std::fs::File;
 use std::io::{self, stdin, Read};
@@ -68,21 +68,21 @@ fn main() -> lamzu_cfg::Result<()> {
     let device_compat = device_compatibility(&api)
         .into_iter()
         .reduce(|acc, compat| match acc {
-            Compatibility::Tested(_) => acc,
+            Compatibility::Tested(_, _) => acc,
             Compatibility::Untested(_) => match compat {
-                Compatibility::Tested(_) => compat,
+                Compatibility::Tested(_, _) => compat,
                 _ => acc,
             },
             Compatibility::Incompatible(_) => compat,
         })
         .expect("No USB devices found.");
 
-    let (device, tested) = match device_compat {
-        Compatibility::Tested(device) => (device, true),
+    let (device, tested, product) = match device_compat {
+        Compatibility::Tested(device, product) => (device, true, product),
         Compatibility::Untested(device) => {
             if args.force {
                 eprintln!("Warning: Using an untested device.");
-                (device, false)
+                (device, false, Product::default())
             } else {
                 eprintln!(concat!(
                     "No devices that have been tested with this tool have been found. ",
@@ -98,22 +98,20 @@ fn main() -> lamzu_cfg::Result<()> {
         }
     };
 
-    eprintln!(
-        "Using device: {} {}",
-        device
-            .get_manufacturer_string()?
-            .unwrap_or("Unknown".to_string()),
-        device
-            .get_product_string()?
-            .unwrap_or("Unknown".to_string())
-    );
+    if tested {
+        eprintln!("Using device: {}", product);
+    } else {
+        eprintln!("Using device: Unknown");
+    }
+
     eprintln!("You may need to move your mouse to wake it up...");
 
+    let atlantis = Atlantis::new(product);
     match args.command {
         Command::Get { json, profile } => {
             if let Some(profile_number) = profile {
                 // Profiles numbered from 1 for CLI.
-                let profile = Atlantis.profile(&device, profile_number.saturating_sub(1))?;
+                let profile = atlantis.profile(&device, profile_number.saturating_sub(1))?;
                 eprintln!("Profile {} retrieved from mouse:", profile_number);
 
                 println!(
@@ -125,7 +123,7 @@ fn main() -> lamzu_cfg::Result<()> {
                     }
                 );
             } else {
-                let profiles = Atlantis.profiles(&device)?;
+                let profiles = atlantis.profiles(&device)?;
                 eprintln!("All profiles retrieved from mouse:");
                 println!(
                     "{}",
@@ -146,7 +144,7 @@ fn main() -> lamzu_cfg::Result<()> {
         } => {
             // Test read for untested devices to pick up any errors.
             if !tested {
-                Atlantis.profile(&device, 0)?;
+                atlantis.profile(&device, 0)?;
             }
 
             let input = get_file_arg_or_stdin(file, config)?;
@@ -158,7 +156,7 @@ fn main() -> lamzu_cfg::Result<()> {
                 };
 
                 // Profiles numbered from 1 for CLI.
-                Atlantis.set_profile(&device, profile_number.saturating_sub(1), &profile)?;
+                atlantis.set_profile(&device, profile_number.saturating_sub(1), &profile)?;
                 eprintln!("Profile {} configured", profile_number);
             } else {
                 let profiles: Vec<Profile> = if json {
@@ -166,21 +164,21 @@ fn main() -> lamzu_cfg::Result<()> {
                 } else {
                     ron::de::from_str(&input).unwrap()
                 };
-                Atlantis.set_profiles(&device, &profiles)?;
+                atlantis.set_profiles(&device, &profiles)?;
                 eprintln!("Profiles configured");
             }
         }
 
         Command::GetActive => {
             // Profiles numbered from 1 for CLI.
-            let profile_number = Atlantis.active_profile_index(&device)? + 1;
+            let profile_number = atlantis.active_profile_index(&device)? + 1;
             eprintln!("Active profile on mouse:");
             println!("{}", profile_number);
         }
 
         Command::SetActive { profile_number } => {
             // Profiles numbered from 1 for CLI.
-            Atlantis.set_active_profile_index(&device, profile_number.saturating_sub(1))?;
+            atlantis.set_active_profile_index(&device, profile_number.saturating_sub(1))?;
             eprintln!("Set active profile to:");
             println!("{}", profile_number);
         }
