@@ -120,7 +120,7 @@ impl TryFrom<&Profile> for RawProfile {
         assert_range_opt(0..8, &profile.current_dpi_index)?;
         assert_range_opt(0..2, &profile.lift_off_distance)?;
         assert_range_opt(0..16, &profile.debounce_ms)?;
-        assert_range_opt(0..91, &profile.peak_performance_time)?;
+        assert_range_opt(0..2551, &profile.peak_performance_time)?;
 
         let (button_actions, combos, macros) = profile_to_raw_actions_combos_macros(profile)?;
 
