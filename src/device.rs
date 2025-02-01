@@ -9,9 +9,10 @@ use hidapi::{DeviceInfo, HidApi, HidDevice};
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
 // similar in other Lamzu mice but needs testing.
 const VENDOR_ID: u16 = 0x3554;
-const SUPPORTED_PRODUCTS: [u16; 2] = [
-    0xf50d, // Atlantis Mini Pro receiver.
-    0xf50f, // Atlantis Mini Pro.
+const SUPPORTED_PRODUCTS: [u16; 3] = [
+    0xf50d, // Atlantis Pro 1K receiver.
+    0xf50f, // Atlantis Pro (wired).
+    0xf510, // Atlantis Pro 4K receiver.
 ];
 const REPORT_ID: u8 = 8;
 
