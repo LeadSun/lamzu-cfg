@@ -7,7 +7,7 @@ use crate::device::{checksum, Mouse, Product};
 use crate::Profile;
 use hidapi::HidDevice;
 use raw_profile::RawProfile;
-use report::{make_request, StandardReport};
+use report::{make_request, read_battery_voltage, StandardReport};
 
 // Checksum algorithms used.
 type Sum171 = checksum::SumComplement8<171>;
@@ -125,5 +125,16 @@ impl Mouse for Atlantis {
                 index
             )))
         }
+    }
+
+    fn battery_voltage(&self, device: &HidDevice) -> crate::Result<u16> {
+        read_battery_voltage(device)
+    }
+
+    fn battery_percentage(&self, device: &HidDevice) -> crate::Result<u8> {
+        let mv = self.battery_voltage(device)?;
+
+        // Basic linear battery percentage calculation. Will need tweaking.
+        Ok((mv.saturating_sub(3050) as f32 / 1060.0 * 100.0) as u8)
     }
 }

@@ -91,6 +91,15 @@ impl StandardReport {
         }
     }
 
+    pub fn read_battery_level() -> Self {
+        Self {
+            cmd: Command::ReadBatteryLevel,
+            error: 0,
+            address: 0,
+            data: Vec::new(),
+        }
+    }
+
     /// Returns a reference to the internal data unless the report indicates an
     /// error.
     pub fn data(&self) -> crate::Result<&[u8]> {
@@ -128,7 +137,7 @@ impl Report for StandardReport {
 enum Command {
     Unknown2 = 2,
     Unknown3 = 3,
-    Unknown4 = 4,
+    ReadBatteryLevel = 4,
 
     /// Write profile data to address within active profile.
     WriteProfileData = 7,
@@ -194,6 +203,37 @@ pub fn make_request(device: &HidDevice, request: &StandardReport) -> crate::Resu
             }
             Err(crate::Error::UnexpectedReport) => {}
             result => return result,
+        }
+    }
+
+    Err(crate::Error::NoResponse)
+}
+
+fn read_report_raw(device: &HidDevice) -> crate::Result<[u8; 17]> {
+    let mut report_bytes = [0; 17];
+    let read_bytes = device.read(&mut report_bytes)?;
+    if report_bytes[0] != 8 {
+        return Err(crate::Error::UnexpectedReport);
+    }
+
+    assert!(read_bytes == 17);
+    Ok(report_bytes)
+}
+
+// Special case since the report structure doesn't match.
+pub fn read_battery_voltage(device: &HidDevice) -> crate::Result<u16> {
+    let request = StandardReport::read_battery_level();
+    write_report(device, &request)?;
+
+    for _ in 0..3 {
+        match read_report_raw(device) {
+            Ok(response) => {
+                if response[1] == Command::ReadBatteryLevel as u8 {
+                    return Ok(u16::from_be_bytes([response[8], response[9]]));
+                }
+            }
+            Err(crate::Error::UnexpectedReport) => {}
+            Err(e) => return Err(e),
         }
     }
 
