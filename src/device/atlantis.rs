@@ -134,7 +134,7 @@ impl Mouse for Atlantis {
     fn battery_percentage(&self, device: &HidDevice) -> crate::Result<u8> {
         let mv = self.battery_voltage(device)?;
 
-        // Basic linear battery percentage calculation. Will need tweaking.
-        Ok((mv.saturating_sub(3050) as f32 / 1060.0 * 100.0) as u8)
+        // Basic linear battery percentage calculation. 100% at 4.2v
+        Ok(((mv.saturating_sub(3050) as f32 / 1150.0 * 100.0).round() as u8).min(100))
     }
 }
