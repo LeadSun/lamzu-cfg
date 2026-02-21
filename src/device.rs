@@ -74,6 +74,10 @@ pub trait Mouse {
 
     /// Set the active profile by index.
     fn set_active_profile_index(&self, device: &HidDevice, index: usize) -> crate::Result<()>;
+
+    fn battery_voltage(&self, device: &HidDevice) -> crate::Result<u16>;
+
+    fn battery_percentage(&self, device: &HidDevice) -> crate::Result<u8>;
 }
 
 /// Trait for types implementing both `BinRead` and `BinWrite`.

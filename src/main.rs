@@ -58,6 +58,13 @@ enum Command {
         /// Active profile number to set
         profile_number: usize,
     },
+
+    /// Get the battery charge percentage.
+    GetBattery {
+        /// Return raw millivolts instead of percent.
+        #[arg(short, long)]
+        millivolts: bool,
+    },
 }
 
 fn main() -> lamzu_cfg::Result<()> {
@@ -181,6 +188,14 @@ fn main() -> lamzu_cfg::Result<()> {
             atlantis.set_active_profile_index(&device, profile_number.saturating_sub(1))?;
             eprintln!("Set active profile to:");
             println!("{}", profile_number);
+        }
+
+        Command::GetBattery { millivolts } => {
+            if millivolts {
+                println!("{}", atlantis.battery_voltage(&device)?);
+            } else {
+                println!("{}", atlantis.battery_percentage(&device)?);
+            }
         }
     }
 

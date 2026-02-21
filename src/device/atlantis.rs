@@ -7,7 +7,7 @@ use crate::device::{checksum, Mouse, Product};
 use crate::Profile;
 use hidapi::HidDevice;
 use raw_profile::RawProfile;
-use report::{make_request, StandardReport};
+use report::{make_request, read_battery_voltage, StandardReport};
 
 // Checksum algorithms used.
 type Sum171 = checksum::SumComplement8<171>;
@@ -15,6 +15,8 @@ type Sum181 = checksum::SumComplement8<181>;
 
 const NUM_BUTTONS: u8 = 6;
 const NUM_PROFILES: usize = 4;
+const BATTERY_MIN_MILLIVOLTS: u16 = 3050;
+const BATTERY_MAX_MILLIVOLTS: u16 = 4200;
 
 /// Lamzu Atlantis mouse interface.
 pub struct Atlantis {
@@ -125,5 +127,19 @@ impl Mouse for Atlantis {
                 index
             )))
         }
+    }
+
+    fn battery_voltage(&self, device: &HidDevice) -> crate::Result<u16> {
+        read_battery_voltage(device)
+    }
+
+    fn battery_percentage(&self, device: &HidDevice) -> crate::Result<u8> {
+        let battery_mv = self.battery_voltage(device)?;
+
+        // Basic linear battery percentage calculation.
+        let voltage_range = (BATTERY_MAX_MILLIVOLTS - BATTERY_MIN_MILLIVOLTS) as f32;
+        let battery_percent =
+            battery_mv.saturating_sub(BATTERY_MIN_MILLIVOLTS) as f32 / voltage_range * 100.0;
+        Ok((battery_percent.round() as u8).min(100))
     }
 }
