@@ -3,9 +3,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
-    #[error("BinRw error")]
-    BinRw(#[from] binrw::Error),
-
     #[error("USB HID API error")]
     Hid(#[from] HidError),
 
@@ -23,6 +20,9 @@ pub enum Error {
 
     #[error("No compatible devices found")]
     NoDevice,
+
+    #[error("Untested device found")]
+    UntestedDevice,
 
     #[error("No valid response for request")]
     NoResponse,

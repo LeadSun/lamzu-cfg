@@ -1,5 +1,5 @@
 [package]
-name = "lamzu-cfg"
+name = "lamzu"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 hidapi = "2.6"
 thiserror = "1.0"
-binrw = "0.13"
 keycode = { version = "0.4", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_with = "3.7"
