@@ -91,7 +91,7 @@ pub struct Profile {
     pub button_map: HashMap<Button, Action>,
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub macros: HashMap<String, Vec<MacroEvent>>,
+    pub macros: HashMap<String, Macro>,
 }
 
 /// Physical buttons on the mouse.
@@ -141,11 +141,34 @@ pub struct KeyEvent {
     pub state: KeyState,
 }
 
+/// Sequence of key presses that can be triggered by a button.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Macro {
+    pub mode: MacroMode,
+    pub events: Vec<MacroEvent>,
+}
+
 /// Key pressed / released events with a delay.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct MacroEvent {
     pub key_event: KeyEvent,
     pub delay_ms: u16,
+}
+
+/// Macro repeat behaviour.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub enum MacroMode {
+    /// Repeat x times.
+    Repeat(u8),
+
+    /// Repeat until the same button is pressed again.
+    Toggle,
+
+    /// Repeat while the button is held.
+    Hold,
+
+    /// Repeate until any button is pressed.
+    UntilPress,
 }
 
 /// XY DPI.

@@ -2,7 +2,9 @@ mod hid;
 use hid::*;
 
 use crate::device::{device_compatibility, Compatibility, Product};
-use crate::profile::{Action, Button, Color, KeyEvent, MacroEvent, Profile, Resolution};
+use crate::profile::{
+    Action, Button, Color, KeyEvent, Macro, MacroEvent, MacroMode, Profile, Resolution,
+};
 use crate::Mouse;
 use hidapi::{HidApi, HidDevice};
 use keycode::{KeyMap, KeyMapping, KeyMappingId, KeyModifiers, KeyState};
@@ -341,9 +343,7 @@ impl Atlantis {
         self.write_bool(address::HIGH_PERFORMANCE, high_performance)
     }
 
-    fn button_mappings(
-        &self,
-    ) -> crate::Result<(HashMap<Button, Action>, HashMap<String, Vec<MacroEvent>>)> {
+    fn button_mappings(&self) -> crate::Result<(HashMap<Button, Action>, HashMap<String, Macro>)> {
         let mut button_map = HashMap::new();
         let mut macros = HashMap::new();
         for (i, button) in BUTTONS.iter().enumerate() {
@@ -358,9 +358,18 @@ impl Atlantis {
                     );
                 }
 
-                [6, 5, macro_index] => {
-                    let (name, events) = self.get_macro(*macro_index as usize)?;
-                    macros.insert(name.clone(), events);
+                [6, macro_index, repeat] => {
+                    if *macro_index as usize != i {
+                        eprintln!("Macro index ({macro_index}) doesn't match button ({i}). Corrupted action?");
+                    }
+                    let mode = match repeat {
+                        255 => MacroMode::UntilPress,
+                        254 => MacroMode::Hold,
+                        253 => MacroMode::Toggle,
+                        x => MacroMode::Repeat(*x),
+                    };
+                    let (name, events) = self.get_macro(i)?;
+                    macros.insert(name.clone(), Macro { mode, events });
                     button_map.insert(*button, Action::Macro { name });
                 }
 
@@ -375,7 +384,7 @@ impl Atlantis {
     fn set_button_mappings(
         &self,
         button_map: &HashMap<Button, Action>,
-        macros: &HashMap<String, Vec<MacroEvent>>,
+        macros: &HashMap<String, Macro>,
     ) -> crate::Result<()> {
         for (i, button) in BUTTONS.iter().enumerate() {
             if let Some(action) = button_map.get(button) {
@@ -390,13 +399,27 @@ impl Atlantis {
                                 .ok_or(crate::Error::InvalidConversion(format!(
                                     "Undefined reference to macro: {name}"
                                 )))?;
-                        self.set_macro(i, name, m)?;
+                        self.set_macro(i, name, &m.events)?;
+                        self.write_flash_checked(
+                            address::BUTTON_ACTIONS + (i * 4),
+                            &[
+                                6,
+                                i as u8,
+                                match m.mode {
+                                    MacroMode::Repeat(x) => x as u8,
+                                    MacroMode::Toggle => 253,
+                                    MacroMode::Hold => 254,
+                                    MacroMode::UntilPress => 255,
+                                },
+                            ],
+                        )?;
+                        continue;
                     }
                     _ => {}
                 }
                 self.write_flash_checked(
                     address::BUTTON_ACTIONS + (i * 4),
-                    &action_to_raw(action, i),
+                    &action_to_raw(action),
                 )?;
             }
         }
@@ -465,20 +488,23 @@ impl Atlantis {
         macro_events: &[MacroEvent],
     ) -> crate::Result<()> {
         assert_range(0..NUM_BUTTONS, index)?;
+        let mut address = address::MACROS + (index * 384);
 
         let mut buf = vec![0];
         buf.extend(name.as_bytes());
         buf[0] = buf.len() as u8 - 1;
-        assert_range(1..MAX_MACRO_NAME_LEN, buf[0])?;
-        buf.resize(31, 0);
+        assert_range(1..=MAX_MACRO_NAME_LEN, buf[0])?;
+        write_flash(&self.device, address, buf)?;
+        address += 31;
+
         assert_range(1..MAX_MACRO_EVENTS, macro_events.len())?;
-        buf.push(macro_events.len() as u8);
+        let mut buf = vec![macro_events.len() as u8];
         for event in macro_events {
             buf.extend(key_event_to_raw(&event.key_event)?);
             buf.extend(u16::to_be_bytes(event.delay_ms));
         }
 
-        self.write_flash_checked(address::MACROS + (index * 384), &buf)
+        write_flash(&self.device, address, buf)
     }
 }
 
@@ -617,7 +643,7 @@ fn resolution_from_raw(raw: u8) -> u16 {
     (raw as u16 + 1) * 50
 }
 
-fn action_to_raw(action: &Action, button_index: usize) -> [u8; 3] {
+fn action_to_raw(action: &Action) -> [u8; 3] {
     match action {
         Action::Disabled => [0, 0, 0],
 
@@ -642,7 +668,7 @@ fn action_to_raw(action: &Action, button_index: usize) -> [u8; 3] {
         Action::Fire { interval, repeat } => [4, *interval, *repeat],
 
         Action::Combo { .. } => [5, 0, 0],
-        Action::Macro { .. } => [6, 5, button_index as u8],
+        Action::Macro { .. } => unimplemented!("Macro actions should be converted manually."),
     }
 }
 
