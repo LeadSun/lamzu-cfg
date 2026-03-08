@@ -21,7 +21,6 @@ mod address {
     pub const LIFT_OFF_DISTANCE: usize = 10;
     pub const RESOLUTIONS: usize = 12;
     pub const RESOLUTION_COLORS: usize = 44;
-    pub const CHARGING_LED: usize = 84;
     pub const BUTTON_ACTIONS: usize = 96;
     pub const DEBOUNCE_MS: usize = 169;
     pub const MOTION_SYNC: usize = 171;
@@ -259,15 +258,6 @@ impl Atlantis {
             self.set_resolution_color(i, color)?;
         }
         Ok(())
-    }
-
-    fn charging_color(&self) -> crate::Result<Color> {
-        let raw = self.read_flash_checked(address::CHARGING_LED, 3)?;
-        Ok(Color::new(raw[0], raw[1], raw[2]))
-    }
-
-    fn set_charging_color(&self, color: &Color) -> crate::Result<()> {
-        self.write_flash_checked(address::CHARGING_LED, &[color.red, color.green, color.blue])
     }
 
     fn lift_off_distance(&self) -> crate::Result<u8> {
@@ -525,7 +515,6 @@ impl Mouse for Atlantis {
             current_resolution_index: Some(self.resolution_index()? as usize),
             resolutions: self.resolutions()?,
             resolution_colors: self.resolution_colors()?,
-            charging_color: Some(self.charging_color()?),
             lift_off_distance: Some(self.lift_off_distance()?),
             debounce_ms: Some(self.debounce_ms()?),
             motion_sync: Some(self.motion_sync()?),
@@ -565,9 +554,6 @@ impl Mouse for Atlantis {
         }
         if !profile.resolution_colors.is_empty() {
             self.set_resolution_colors(&profile.resolution_colors)?;
-        }
-        if let Some(val) = profile.charging_color {
-            self.set_charging_color(&val)?;
         }
         if let Some(val) = profile.lift_off_distance {
             self.set_lift_off_distance(val as u8)?;

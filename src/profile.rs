@@ -84,9 +84,6 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub resolution_colors: Vec<Color>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub charging_color: Option<Color>,
-
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub button_map: HashMap<Button, Action>,
 
