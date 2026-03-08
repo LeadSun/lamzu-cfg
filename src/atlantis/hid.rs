@@ -106,36 +106,45 @@ fn make_request(device: &HidDevice, request: &Report, ignore_len: bool) -> crate
     // A request may result in multiple responses so skip the unwanted ones.
     for _ in 0..3 {
         match read_report(device, ignore_len) {
-            Ok(response) => {
+            Ok(Some(response)) => {
                 if response.cmd == request.cmd
                     && (ignore_len || response.payload.len() == request.payload.len())
                 {
-                    return Ok(response);
+                    if response.error == 0 {
+                        return Ok(response);
+                    } else {
+                        return Err(crate::Error::MouseErrorResponse(response.error));
+                    }
                 }
             }
-            Err(crate::Error::UnexpectedReport) => {}
-            result => return result,
+            Ok(None) => {}
+            Err(e) => return Err(e),
         }
     }
 
     Err(crate::Error::NoResponse)
 }
 
-fn read_report(device: &HidDevice, ignore_len: bool) -> crate::Result<Report> {
+fn read_report(device: &HidDevice, ignore_len: bool) -> crate::Result<Option<Report>> {
     let mut buf = vec![0; 17];
     let len = device.read(&mut buf)?;
     if buf[0] != REPORT_ID {
-        return Err(crate::Error::UnexpectedReport);
+        // Wrong report.
+        return Ok(None);
     }
     assert!(len == 17);
     assert!(checksum(&buf[..16]) == buf[16]);
     let payload_len = if ignore_len { 10 } else { buf[5] as usize };
-    Ok(Report {
-        cmd: Command::from_u8(buf[1]).ok_or(crate::Error::UnexpectedReport)?,
+    let Some(cmd) = Command::from_u8(buf[1]) else {
+        // Response for unknown command.
+        return Ok(None);
+    };
+    Ok(Some(Report {
+        cmd,
         error: buf[2],
         address: u16::from_be_bytes([buf[3], buf[4]]),
         payload: buf[6..(6 + payload_len)].to_vec(),
-    })
+    }))
 }
 
 fn write_report(device: &HidDevice, report: &Report) -> crate::Result<()> {

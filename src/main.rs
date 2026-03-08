@@ -65,7 +65,7 @@ enum Command {
     },
 }
 
-fn main() -> lamzu::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     let atlantis = Atlantis::connect(args.force).inspect_err(|e| match e {

@@ -106,7 +106,7 @@ impl Atlantis {
             data.pop();
             Ok(data)
         } else {
-            Err(crate::Error::InvalidConversion(format!(
+            Err(crate::Error::InvalidProfile(format!(
                 "Checksum mismatch at {address:40X}: {data:?}"
             )))
         }
@@ -139,7 +139,7 @@ impl Atlantis {
         Ok(POLL_RATE_MAP
             .iter()
             .find(|(_, r)| *r == raw)
-            .ok_or(crate::Error::InvalidConversion(format!(
+            .ok_or(crate::Error::InvalidProfile(format!(
                 "Invalid poll rate value '{}' from mouse",
                 raw
             )))?
@@ -157,7 +157,7 @@ impl Atlantis {
         let raw = POLL_RATE_MAP
             .iter()
             .find(|(p, _)| *p == poll_rate)
-            .ok_or(crate::Error::InvalidConversion(format!(
+            .ok_or(crate::Error::InvalidProfile(format!(
                 "Poll rate {poll_rate} is not supported",
             )))?
             .1;
@@ -383,12 +383,11 @@ impl Atlantis {
                         self.set_key_combo(i, events)?;
                     }
                     Action::Macro { name } => {
-                        let m =
-                            macros
-                                .get(name)
-                                .ok_or(crate::Error::InvalidConversion(format!(
-                                    "Undefined reference to macro: {name}"
-                                )))?;
+                        let m = macros
+                            .get(name)
+                            .ok_or(crate::Error::InvalidProfile(format!(
+                                "Undefined reference to macro: {name}"
+                            )))?;
                         self.set_macro(i, name, &m.events)?;
                         self.write_flash_checked(
                             address::BUTTON_ACTIONS + (i * 4),
@@ -599,7 +598,7 @@ impl Mouse for Atlantis {
         if profile < Self::NUM_PROFILES {
             write_active_profile(&self.device, profile as u8)
         } else {
-            Err(crate::Error::InvalidConversion(format!(
+            Err(crate::Error::InvalidProfile(format!(
                 "Profile index '{}' is out of range (0-3)",
                 profile
             )))
@@ -688,7 +687,7 @@ fn action_from_raw(raw: &[u8]) -> crate::Result<Action> {
         },
 
         _ => {
-            return Err(crate::Error::InvalidConversion(format!(
+            return Err(crate::Error::InvalidProfile(format!(
                 "Button action data from mouse is invalid: {raw:?}"
             )))
         }
@@ -728,7 +727,7 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
         0b10000000 => KeyState::Pressed,
         0b01000000 => KeyState::Released,
         flags => {
-            return Err(crate::Error::InvalidConversion(format!(
+            return Err(crate::Error::InvalidProfile(format!(
                 "Invalid key event pressed/released flags: {flags:0>2X}"
             )))
         }
@@ -743,7 +742,7 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
             8 => KeyMappingId::ArrowDown,
             16 => KeyMappingId::ArrowUp,
             c => {
-                return Err(crate::Error::InvalidConversion(format!(
+                return Err(crate::Error::InvalidProfile(format!(
                     "Unknown key direction code: {c}"
                 )))
             }
@@ -751,7 +750,7 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
 
         // HID consumer control
         0b010 => {
-            return Err(crate::Error::InvalidConversion(
+            return Err(crate::Error::InvalidProfile(
                 "HID consumer control codes are unimplemented.".to_string(),
             ))
         }
@@ -761,7 +760,7 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
             // USB HID usage page 7 for keyboards.
             KeyMap::from_usb_code(7, code)
                 .map_err(|_| {
-                    crate::Error::InvalidConversion(format!(
+                    crate::Error::InvalidProfile(format!(
                         "Failed to convert from raw HID code: {code}"
                     ))
                 })?
@@ -769,9 +768,9 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
         }
 
         // Modifier mask
-        0b000 => match KeyModifiers::from_bits(code as u8).ok_or(
-            crate::Error::InvalidConversion(format!("Invalid modifier mask from raw: {code}")),
-        )? {
+        0b000 => match KeyModifiers::from_bits(code as u8).ok_or(crate::Error::InvalidProfile(
+            format!("Invalid modifier mask from raw: {code}"),
+        ))? {
             KeyModifiers::ControlLeft => KeyMappingId::ControlLeft,
             KeyModifiers::ShiftLeft => KeyMappingId::ShiftLeft,
             KeyModifiers::AltLeft => KeyMappingId::AltLeft,
@@ -784,14 +783,14 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
             // Multiple modifiers might work, but we'd need to figure out how to represent
             // that in RON/JSON serialized profiles.
             _ => {
-                return Err(crate::Error::InvalidConversion(format!(
+                return Err(crate::Error::InvalidProfile(format!(
                     "Only one modifier is currently supported in key events."
                 )));
             }
         },
 
         bits => {
-            return Err(crate::Error::InvalidConversion(format!(
+            return Err(crate::Error::InvalidProfile(format!(
                 "Invalid key event type flags: {bits}"
             )))
         }
@@ -820,7 +819,7 @@ fn assert_range<
     if range.contains(&val) {
         Ok(())
     } else {
-        Err(crate::Error::InvalidConversion(format!(
+        Err(crate::Error::InvalidProfile(format!(
             "Value '{val}' out of range '{range:?}'",
         )))
     }
