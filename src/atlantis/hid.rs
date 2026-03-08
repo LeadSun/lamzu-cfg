@@ -84,9 +84,9 @@ pub fn read_active_profile(device: &HidDevice) -> crate::Result<u8> {
         cmd: Command::ReadActiveProfile,
         error: 0,
         address: 0,
-        payload: vec![0],
+        payload: vec![],
     };
-    make_request(device, &report, false).map(|response| response.payload[0])
+    make_request(device, &report, true).map(|response| response.payload[0])
 }
 
 pub fn write_active_profile(device: &HidDevice, profile_index: u8) -> crate::Result<()> {
