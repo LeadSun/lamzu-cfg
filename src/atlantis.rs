@@ -7,7 +7,7 @@ use crate::profile::{
 };
 use crate::Mouse;
 use hidapi::{HidApi, HidDevice};
-use keycode::{KeyMap, KeyMapping, KeyMappingId, KeyModifiers, KeyState};
+use keycode::{KeyMap, KeyMappingId, KeyModifiers, KeyState};
 use std::collections::HashMap;
 use std::ops::{RangeBounds, RangeInclusive};
 
@@ -772,7 +772,8 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
 
         // HID
         0b001 => {
-            KeyMap::try_from(KeyMapping::Usb(code))
+            // USB HID usage page 7 for keyboards.
+            KeyMap::from_usb_code(7, code)
                 .map_err(|_| {
                     crate::Error::InvalidConversion(format!(
                         "Failed to convert from raw HID code: {code}"
