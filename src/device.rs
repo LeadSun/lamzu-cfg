@@ -1,9 +1,3 @@
-mod atlantis;
-pub use atlantis::Atlantis;
-mod checksum;
-
-use crate::Profile;
-use binrw::{BinRead, BinWrite};
 use hidapi::{DeviceInfo, HidApi, HidDevice};
 use std::fmt;
 
@@ -53,37 +47,6 @@ impl fmt::Display for Product {
         }
     }
 }
-
-/// Trait for supported mice that can be configured via profiles.
-pub trait Mouse {
-    /// Returns a specific profile from the device.
-    fn profile(&self, device: &HidDevice, index: usize) -> crate::Result<Profile>;
-
-    /// Write to a specific profile on the device.
-    fn set_profile(&self, device: &HidDevice, index: usize, profile: &Profile)
-        -> crate::Result<()>;
-
-    /// Returns all profiles from the device.
-    fn profiles(&self, device: &HidDevice) -> crate::Result<Vec<Profile>>;
-
-    /// Write multiple profiles to the device.
-    fn set_profiles(&self, device: &HidDevice, profiles: &[Profile]) -> crate::Result<()>;
-
-    /// Returns the index of the currently active profile.
-    fn active_profile_index(&self, device: &HidDevice) -> crate::Result<usize>;
-
-    /// Set the active profile by index.
-    fn set_active_profile_index(&self, device: &HidDevice, index: usize) -> crate::Result<()>;
-
-    fn battery_voltage(&self, device: &HidDevice) -> crate::Result<u16>;
-
-    fn battery_percentage(&self, device: &HidDevice) -> crate::Result<u8>;
-}
-
-/// Trait for types implementing both `BinRead` and `BinWrite`.
-pub trait BinRw: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()> {}
-
-impl<T: for<'a> BinRead<Args<'a> = ()> + for<'a> BinWrite<Args<'a> = ()>> BinRw for T {}
 
 /// HID device compatibility with this library.
 #[derive(Debug)]
@@ -147,24 +110,6 @@ pub fn device_compatibility(api: &HidApi) -> Vec<Compatibility> {
             }
         })
         .collect()
-}
-
-/// Returns the first compatible device, preferring devices tested to work.
-pub fn first_compatible_device(api: &HidApi) -> Option<Compatibility> {
-    let mut untested = None;
-    for compat in device_compatibility(api) {
-        match compat {
-            Compatibility::Tested(_, _) => return Some(compat),
-            Compatibility::Untested(_) => {
-                if untested.is_none() {
-                    untested = Some(compat)
-                }
-            }
-            Compatibility::Incompatible(_) => {}
-        }
-    }
-
-    untested
 }
 
 /// Tests whether `report_descriptor` contains `report_id`.
