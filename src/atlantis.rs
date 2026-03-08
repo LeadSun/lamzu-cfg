@@ -395,7 +395,7 @@ impl Atlantis {
                                 6,
                                 i as u8,
                                 match m.mode {
-                                    MacroMode::Repeat(x) => x as u8,
+                                    MacroMode::Repeat(x) => x,
                                     MacroMode::Toggle => 253,
                                     MacroMode::Hold => 254,
                                     MacroMode::UntilPress => 255,
@@ -453,12 +453,10 @@ impl Atlantis {
 
         let events_len = read_flash(&self.device, address, 1)?[0] as usize;
         assert_range(1..=MAX_MACRO_EVENTS, events_len)?;
-        address += 1;
-
-        let events_bytes = read_flash(&self.device, address, events_len * 5)?;
+        let events_bytes = self.read_flash_checked(address, (events_len * 5) + 1)?;
 
         let mut events = Vec::new();
-        for i in (0..(events_len * 5)).step_by(5) {
+        for i in (1..events_bytes.len()).step_by(5) {
             let key_event = key_event_from_raw(&events_bytes[i..(i + 3)])?;
             let delay_ms = u16::from_be_bytes([events_bytes[i + 3], events_bytes[i + 4]]);
             events.push(MacroEvent {
@@ -492,6 +490,7 @@ impl Atlantis {
             buf.extend(key_event_to_raw(&event.key_event)?);
             buf.extend(u16::to_be_bytes(event.delay_ms));
         }
+        buf.push(checksum(&buf));
 
         write_flash(&self.device, address, buf)
     }
