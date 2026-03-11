@@ -129,6 +129,163 @@ sudo lamzu-cfg set -f profiles.json --json
 ```
 
 
+### Profile Example
+
+```ron
+(
+    poll_rate: 1000,
+    current_resolution_index: 2,
+    lift_off_distance: 1,
+    debounce_ms: 8,
+    motion_sync: true,
+    angle_snapping: false,
+    ripple_control: false,
+    peak_performance: true,
+    peak_performance_time: 30,
+    high_performance: false,
+    resolutions: [
+        (
+            x: 400,
+            y: 400,
+        ),
+        (
+            x: 800,
+            y: 800,
+        ),
+        (
+            x: 1600,
+            y: 1600,
+        ),
+        (
+            x: 3200,
+            y: 3200,
+        ),
+        (
+            x: 6400,
+            y: 6400,
+        ),
+    ],
+    resolution_colors: [
+        (
+            red: 255,
+            green: 0,
+            blue: 0,
+        ),
+        (
+            red: 0,
+            green: 255,
+            blue: 255,
+        ),
+        (
+            red: 0,
+            green: 255,
+            blue: 0,
+        ),
+        (
+            red: 255,
+            green: 255,
+            blue: 255,
+        ),
+        (
+            red: 255,
+            green: 255,
+            blue: 0,
+        ),
+    ],
+    button_map: {
+        Left: LeftClick,
+        Right: RightClick,
+        Middle: MiddleClick,
+        Back: Fire(
+            interval: 50,
+            repeat: 2,
+        ),
+        Forward: Combo(
+            events: [
+                (
+                    key: UsA,
+                    state: Pressed,
+                ),
+                (
+                    key: UsA,
+                    state: Released,
+                ),
+                (
+                    key: UsB,
+                    state: Pressed,
+                ),
+                (
+                    key: UsB,
+                    state: Released,
+                ),
+                (
+                    key: UsC,
+                    state: Pressed,
+                ),
+                (
+                    key: UsC,
+                    state: Released,
+                ),
+            ]
+        ),
+
+        Bottom: Macro(
+            name: "example macro",
+        ),
+    },
+    macros: {
+        "example macro": (
+            mode: Repeat(1),
+            events: [
+                (
+                    key_event: (
+                        key: UsA,
+                        state: Pressed,
+                    ),
+                    delay_ms: 100,
+                ),
+                (
+                    key_event: (
+                        key: UsA,
+                        state: Released,
+                    ),
+                    delay_ms: 100,
+                ),
+                (
+                    key_event: (
+                        key: UsB,
+                        state: Pressed,
+                    ),
+                    delay_ms: 100,
+                ),
+                (
+                    key_event: (
+                        key: UsB,
+                        state: Released,
+                    ),
+                    delay_ms: 100,
+                ),
+                (
+                    key_event: (
+                        key: UsC,
+                        state: Pressed,
+                    ),
+                    delay_ms: 100,
+                ),
+                (
+                    key_event: (
+                        key: UsC,
+                        state: Released,
+                    ),
+                    delay_ms: 100,
+                ),
+            ],
+        ),
+    },
+)
+```
+
+
 ## Contributing
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
