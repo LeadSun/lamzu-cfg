@@ -1,13 +1,11 @@
 use clap::{Parser, Subcommand, ValueHint};
-use hidapi::HidApi;
-use lamzu_cfg::device::{device_compatibility, Atlantis, Compatibility, Mouse, Product};
-use lamzu_cfg::Profile;
+use lamzu::{Atlantis, Mouse, Profile};
 use std::fs::File;
 use std::io::{self, stdin, Read};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(name = "lamzu-cfg")]
+#[command(name = "lamzu")]
 #[command(about = "Lamzu mouse configuration tool", long_about = None)]
 struct Cli {
     /// Force using untested devices
@@ -67,58 +65,30 @@ enum Command {
     },
 }
 
-fn main() -> lamzu_cfg::Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
-    let api = HidApi::new()?;
 
-    // First compatible device, prioritising tested over untested.
-    let device_compat = device_compatibility(&api)
-        .into_iter()
-        .reduce(|acc, compat| match acc {
-            Compatibility::Tested(_, _) => acc,
-            Compatibility::Untested(_) => match compat {
-                Compatibility::Tested(_, _) => compat,
-                _ => acc,
-            },
-            Compatibility::Incompatible(_) => compat,
-        })
-        .expect("No USB devices found.");
-
-    let (device, tested, product) = match device_compat {
-        Compatibility::Tested(device, product) => (device, true, product),
-        Compatibility::Untested(device) => {
-            if args.force {
-                eprintln!("Warning: Using an untested device.");
-                (device, false, Product::default())
-            } else {
-                eprintln!(concat!(
-                    "No devices that have been tested with this tool have been found. ",
-                    "A device has been detected that may work, but has not been tested. ",
-                    "Use the `--force` to use untested devices. Use at your own risk."
-                ));
-                return Err(lamzu_cfg::Error::NoDevice);
-            }
-        }
-        Compatibility::Incompatible(_) => {
+    let atlantis = Atlantis::connect(args.force).inspect_err(|e| match e {
+        lamzu::Error::NoDevice => {
             eprintln!("No compatible devices found.");
-            return Err(lamzu_cfg::Error::NoDevice);
         }
-    };
-
-    if tested {
-        eprintln!("Using device: {}", product);
-    } else {
-        eprintln!("Using device: Unknown");
-    }
+        lamzu::Error::UntestedDevice => {
+            eprintln!(concat!(
+                "No devices that have been tested with this tool have been found. ",
+                "A device has been detected that may work, but has not been tested. ",
+                "Use the `--force` to use untested devices. Use at your own risk."
+            ));
+        }
+        _ => {}
+    })?;
 
     eprintln!("You may need to move your mouse to wake it up...");
 
-    let atlantis = Atlantis::new(product);
     match args.command {
         Command::Get { json, profile } => {
             if let Some(profile_number) = profile {
                 // Profiles numbered from 1 for CLI.
-                let profile = atlantis.profile(&device, profile_number.saturating_sub(1))?;
+                let profile = atlantis.profile(profile_number.saturating_sub(1))?;
                 eprintln!("Profile {} retrieved from mouse:", profile_number);
 
                 println!(
@@ -130,7 +100,7 @@ fn main() -> lamzu_cfg::Result<()> {
                     }
                 );
             } else {
-                let profiles = atlantis.profiles(&device)?;
+                let profiles = atlantis.profiles()?;
                 eprintln!("All profiles retrieved from mouse:");
                 println!(
                     "{}",
@@ -149,9 +119,9 @@ fn main() -> lamzu_cfg::Result<()> {
             file,
             config,
         } => {
-            // Test read for untested devices to pick up any errors.
-            if !tested {
-                atlantis.profile(&device, 0)?;
+            // Test read for potentially untested devices to hopefully pick up any errors.
+            if args.force {
+                atlantis.profile(0)?;
             }
 
             let input = get_file_arg_or_stdin(file, config)?;
@@ -163,7 +133,7 @@ fn main() -> lamzu_cfg::Result<()> {
                 };
 
                 // Profiles numbered from 1 for CLI.
-                atlantis.set_profile(&device, profile_number.saturating_sub(1), &profile)?;
+                atlantis.set_profile(profile_number.saturating_sub(1), &profile)?;
                 eprintln!("Profile {} configured", profile_number);
             } else {
                 let profiles: Vec<Profile> = if json {
@@ -171,30 +141,30 @@ fn main() -> lamzu_cfg::Result<()> {
                 } else {
                     ron::de::from_str(&input).unwrap()
                 };
-                atlantis.set_profiles(&device, &profiles)?;
+                atlantis.set_profiles(&profiles)?;
                 eprintln!("Profiles configured");
             }
         }
 
         Command::GetActive => {
             // Profiles numbered from 1 for CLI.
-            let profile_number = atlantis.active_profile_index(&device)? + 1;
+            let profile_number = atlantis.active_profile()? + 1;
             eprintln!("Active profile on mouse:");
             println!("{}", profile_number);
         }
 
         Command::SetActive { profile_number } => {
             // Profiles numbered from 1 for CLI.
-            atlantis.set_active_profile_index(&device, profile_number.saturating_sub(1))?;
+            atlantis.set_active_profile(profile_number.saturating_sub(1))?;
             eprintln!("Set active profile to:");
             println!("{}", profile_number);
         }
 
         Command::GetBattery { millivolts } => {
             if millivolts {
-                println!("{}", atlantis.battery_voltage(&device)?);
+                println!("{}", atlantis.battery_voltage()?);
             } else {
-                println!("{}", atlantis.battery_percentage(&device)?);
+                println!("{}", atlantis.battery_percentage()?);
             }
         }
     }
