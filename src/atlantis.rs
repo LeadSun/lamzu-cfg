@@ -1,16 +1,17 @@
 mod hid;
 use hid::*;
 
-use crate::device::{device_compatibility, Compatibility, Product};
 use crate::profile::{
     Action, Button, Color, KeyEvent, Macro, MacroEvent, MacroMode, Profile, Resolution,
 };
-use crate::Mouse;
-use hidapi::{HidApi, HidDevice};
+use crate::{identify, Mouse, Product};
+use hidapi::HidDevice;
 use keycode::{KeyMap, KeyMappingId, KeyModifiers, KeyState};
 use std::collections::HashMap;
 use std::ops::{RangeBounds, RangeInclusive};
 
+const HID_KEYBOARD_PAGE: u16 = 0x07;
+const HID_CONSUMER_PAGE: u16 = 0x0C;
 const BATTERY_MIN_MILLIVOLTS: u16 = 3050;
 const BATTERY_MAX_MILLIVOLTS: u16 = 4200;
 
@@ -53,6 +54,37 @@ const BUTTONS: [Button; NUM_BUTTONS] = [
     Button::Bottom,
 ];
 
+const KEY_FLAGS_PRESSED: u8 = 0b10000000;
+const KEY_FLAGS_RELEASED: u8 = 0b01000000;
+const KEY_FLAGS_DIRECTION: u8 = 0b00000100;
+const KEY_FLAGS_CONSUMER: u8 = 0b00000010;
+const KEY_FLAGS_KEYBOARD: u8 = 0b00000001;
+const SUPPORTED_CONSUMER_CONTROLS: [KeyMappingId; 15] = [
+    KeyMappingId::MediaSelect,
+    KeyMappingId::MediaPlayPause,
+    KeyMappingId::MediaTrackNext,
+    KeyMappingId::MediaTrackPrevious,
+    KeyMappingId::MediaStop,
+    KeyMappingId::LaunchMail,
+    KeyMappingId::LaunchApp2,
+    KeyMappingId::LaunchApp1,
+    KeyMappingId::BrowserHome,
+    KeyMappingId::BrowserSearch,
+    KeyMappingId::BrowserForward,
+    KeyMappingId::BrowserBack,
+    KeyMappingId::BrowserStop,
+    KeyMappingId::BrowserRefresh,
+    KeyMappingId::BrowserFavorites,
+];
+// The keycode crate only has IDs for keyboard volume controls, not consumer
+// volume controls (used by media keys in the official Lamzu app). We'll just
+// silently convert these and hope it works.
+const REMAPPED_KEYCODES: [(KeyMappingId, u16); 3] = [
+    (KeyMappingId::VolumeMute, 0xE2),
+    (KeyMappingId::VolumeUp, 0xE9),
+    (KeyMappingId::VolumeDown, 0xEA),
+];
+
 const MAX_RESOLUTION_COUNT: usize = 8;
 const MAX_RESOLUTION: u16 = 26000;
 const RANGE_LIFT_OFF_DISTANCE: RangeInclusive<usize> = 1..=2;
@@ -67,33 +99,10 @@ pub struct Atlantis {
 }
 
 impl Atlantis {
-    /// Connect to the first compatible Atlantis mouse, optionally accepting
-    /// untested mice.
-    pub fn connect(force: bool) -> crate::Result<Self> {
-        let api = HidApi::new()?;
-        let device_compat = device_compatibility(&api)
-            .into_iter()
-            .reduce(|acc, compat| match acc {
-                Compatibility::Tested(_, _) => acc,
-                Compatibility::Untested(_) => match compat {
-                    Compatibility::Tested(_, _) => compat,
-                    _ => acc,
-                },
-                Compatibility::Incompatible(_) => compat,
-            })
-            .ok_or(crate::Error::NoDevice)?;
-
-        match device_compat {
-            Compatibility::Tested(device, product) => Ok(Self::new(device, product)),
-            Compatibility::Untested(device) => {
-                if force {
-                    Ok(Self::new(device, Product::default()))
-                } else {
-                    Err(crate::Error::UntestedDevice)
-                }
-            }
-            Compatibility::Incompatible(_) => Err(crate::Error::NoDevice),
-        }
+    /// Attempt to connect to an Atlantis USB HID device.
+    pub fn connect(device: HidDevice) -> crate::Result<Self> {
+        let product = identify(&device)?.ok_or(crate::Error::Incompatible)?;
+        Ok(Self::new(device, product))
     }
 
     fn new(device: HidDevice, product: Product) -> Self {
@@ -706,13 +715,16 @@ fn key_event_to_raw(key_event: &KeyEvent) -> crate::Result<[u8; 3]> {
     };
 
     let mut key_flags = match key_event.state {
-        KeyState::Pressed => 0b10000000,
-        KeyState::Released => 0b01000000,
+        KeyState::Pressed => KEY_FLAGS_PRESSED,
+        KeyState::Released => KEY_FLAGS_RELEASED,
     };
 
     if modifier == 0 {
-        // HID code
-        key_flags |= 1;
+        if SUPPORTED_CONSUMER_CONTROLS.contains(&key_event.key) {
+            key_flags |= KEY_FLAGS_CONSUMER;
+        } else {
+            key_flags |= KEY_FLAGS_KEYBOARD;
+        }
         let code = KeyMap::from(key_event.key).usb.to_le_bytes();
         Ok([key_flags, code[0], code[1]])
     } else {
@@ -722,9 +734,9 @@ fn key_event_to_raw(key_event: &KeyEvent) -> crate::Result<[u8; 3]> {
 }
 
 fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
-    let state = match raw[0] & 0b11000000 {
-        0b10000000 => KeyState::Pressed,
-        0b01000000 => KeyState::Released,
+    let state = match raw[0] & (KEY_FLAGS_PRESSED | KEY_FLAGS_RELEASED) {
+        KEY_FLAGS_PRESSED => KeyState::Pressed,
+        KEY_FLAGS_RELEASED => KeyState::Released,
         flags => {
             return Err(crate::Error::InvalidProfile(format!(
                 "Invalid key event pressed/released flags: {flags:0>2X}"
@@ -732,9 +744,8 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
         }
     };
     let code = u16::from_le_bytes([raw[1], raw[2]]);
-    let id = match raw[0] & 0b111 {
-        // Direction
-        0b100 => match code {
+    let id = match raw[0] & (KEY_FLAGS_DIRECTION | KEY_FLAGS_CONSUMER | KEY_FLAGS_KEYBOARD) {
+        KEY_FLAGS_DIRECTION => match code {
             1 => KeyMappingId::ArrowLeft,
             2 => KeyMappingId::ArrowRight,
             // 4 => KeyMappingId::????, // TODO middle direction
@@ -747,20 +758,28 @@ fn key_event_from_raw(raw: &[u8]) -> crate::Result<KeyEvent> {
             }
         },
 
-        // HID consumer control
-        0b010 => {
-            return Err(crate::Error::InvalidProfile(
-                "HID consumer control codes are unimplemented.".to_string(),
-            ))
+        KEY_FLAGS_CONSUMER => {
+            if let Some((id, _)) = REMAPPED_KEYCODES
+                .iter()
+                .find(|(_, mapped_code)| *mapped_code == code)
+            {
+                id.clone()
+            } else {
+                KeyMap::from_usb_code(HID_CONSUMER_PAGE, code)
+                    .map_err(|_| {
+                        crate::Error::InvalidProfile(format!(
+                            "Failed to convert from raw consumer HID code: {code}"
+                        ))
+                    })?
+                    .id
+            }
         }
 
-        // HID
-        0b001 => {
-            // USB HID usage page 7 for keyboards.
-            KeyMap::from_usb_code(7, code)
+        KEY_FLAGS_KEYBOARD => {
+            KeyMap::from_usb_code(HID_KEYBOARD_PAGE, code)
                 .map_err(|_| {
                     crate::Error::InvalidProfile(format!(
-                        "Failed to convert from raw HID code: {code}"
+                        "Failed to convert from raw keyboard HID code: {code}"
                     ))
                 })?
                 .id

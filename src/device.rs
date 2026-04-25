@@ -1,4 +1,5 @@
-use hidapi::{DeviceInfo, HidApi, HidDevice};
+use hidapi::{HidApi, HidDevice, HidResult};
+use serde::Serialize;
 use std::fmt;
 
 // Currently only the Lamzu Atlantis Mini Pro is supported. The protocol may be
@@ -6,28 +7,30 @@ use std::fmt;
 const VENDOR_ID: u16 = 0x3554;
 const REPORT_ID: u8 = 8;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Product {
+    AtlantisWired,
     AtlantisWireless1K,
     AtlantisWireless4K,
-    AtlantisWired,
+    Unknown,
 }
 
 impl Product {
-    pub fn from_usb_product(product_id: u16) -> Option<Product> {
+    pub fn from_usb_product(product_id: u16) -> Product {
         match product_id {
-            0xf50d => Some(Self::AtlantisWireless1K),
-            0xf510 => Some(Self::AtlantisWireless4K),
-            0xf50f => Some(Self::AtlantisWired),
-            _ => None,
+            0xf50f => Self::AtlantisWired,
+            0xf50d => Self::AtlantisWireless1K,
+            0xf510 => Self::AtlantisWireless4K,
+            _ => Self::Unknown,
         }
     }
 
     pub fn max_poll_rate(&self) -> u16 {
         match self {
+            Self::AtlantisWired => 1000,
             Self::AtlantisWireless1K => 1000,
             Self::AtlantisWireless4K => 4000,
-            Self::AtlantisWired => 1000,
+            Self::Unknown => 1000,
         }
     }
 }
@@ -41,75 +44,67 @@ impl Default for Product {
 impl fmt::Display for Product {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::AtlantisWired => write!(f, "Lamzu Atlantis Wired"),
             Self::AtlantisWireless1K => write!(f, "Lamzu Atlantis Wireless (1K)"),
             Self::AtlantisWireless4K => write!(f, "Lamzu Atlantis Wireless (4K)"),
-            Self::AtlantisWired => write!(f, "Lamzu Atlantis Wired"),
+            Self::Unknown => write!(f, "Unknown Device"),
         }
     }
 }
 
-/// HID device compatibility with this library.
-#[derive(Debug)]
-pub enum Compatibility {
-    /// Device has correct vendor ID and report descriptor, and devices with
-    /// this product ID have been tested to work.
-    Tested(HidDevice, Product),
-
-    /// Device has correct vendor ID and report descriptor, but devices with
-    /// this product ID have not been tested. Use at your own risk.
-    Untested(HidDevice),
-
-    /// Device has incorrect vendor ID or report descriptor.
-    Incompatible(DeviceInfo),
+/// Lists potentially compatible devices with their detected products.
+pub fn devices() -> HidResult<Vec<(HidDevice, Product)>> {
+    get_devices(None)
 }
 
-/// Returns `Compatibility` for each detected HID device.
-pub fn device_compatibility(api: &HidApi) -> Vec<Compatibility> {
-    let mut device_infos = api.device_list().collect::<Vec<_>>();
+/// Lists potentially compatible devices with their detected products, filtered
+/// by USB product ID.
+pub fn devices_by_pid(pid: u16) -> HidResult<Vec<(HidDevice, Product)>> {
+    get_devices(Some(pid))
+}
+
+fn get_devices(filter_pid: Option<u16>) -> HidResult<Vec<(HidDevice, Product)>> {
+    let mut api = HidApi::new()?;
+    api.reset_devices()?;
+    api.add_devices(VENDOR_ID, filter_pid.unwrap_or(0))?;
+    let mut device_infos: Vec<_> = api.device_list().collect();
 
     // Deduplicate based on hidraw path.
     device_infos.sort_by(|a, b| a.path().partial_cmp(b.path()).unwrap());
     device_infos.dedup_by(|a, b| a.path() == b.path());
 
-    device_infos
-        .into_iter()
-        .cloned()
-        .map(|device_info| {
-            if device_info.vendor_id() == VENDOR_ID {
-                let mut report_descriptor = [0; hidapi::MAX_REPORT_DESCRIPTOR_SIZE];
-                match device_info.open_device(&api).and_then(|device| {
-                    device
-                        .get_report_descriptor(&mut report_descriptor)
-                        .map(|len| (device, len))
-                }) {
-                    Ok((device, desc_len)) => {
-                        if has_report(&report_descriptor[..desc_len], REPORT_ID) {
-                            if let Some(product) =
-                                Product::from_usb_product(device_info.product_id())
-                            {
-                                Compatibility::Tested(device, product)
-                            } else {
-                                Compatibility::Untested(device)
-                            }
-                        } else {
-                            // Incompatible due to missing required report.
-                            Compatibility::Incompatible(device_info)
-                        }
-                    }
-
-                    Err(error) => {
-                        eprintln!("USB HID device error: {}", error);
-
-                        // Incompatible due to error.
-                        Compatibility::Incompatible(device_info)
-                    }
-                }
-            } else {
-                // Incompatible due to incorrect vendor.
-                Compatibility::Incompatible(device_info)
-            }
+    let mut devices: Vec<_> = device_infos
+        .iter()
+        .filter_map(|info| {
+            let device = info
+                .open_device(&api)
+                .inspect_err(|e| eprintln!("USB HID error: {e}"))
+                .ok()?;
+            let id = identify(&device)
+                .inspect_err(|e| eprintln!("USB HID error: {e}"))
+                .ok()??;
+            Some((device, id))
         })
-        .collect()
+        .collect();
+
+    // Sort by connection priority.
+    devices.sort_by(|(_, product_a), (_, product_b)| product_a.cmp(&product_b));
+
+    Ok(devices)
+}
+
+/// Attempt to identify the connected device, returning `None` for devices that
+/// are incompatible.
+pub fn identify(device: &HidDevice) -> HidResult<Option<Product>> {
+    let device_info = device.get_device_info()?;
+    if device_info.vendor_id() == VENDOR_ID {
+        let mut report_descriptor = [0; hidapi::MAX_REPORT_DESCRIPTOR_SIZE];
+        let desc_len = device.get_report_descriptor(&mut report_descriptor)?;
+        if has_report(&report_descriptor[..desc_len], REPORT_ID) {
+            return Ok(Some(Product::from_usb_product(device_info.product_id())));
+        }
+    }
+    Ok(None)
 }
 
 /// Tests whether `report_descriptor` contains `report_id`.
