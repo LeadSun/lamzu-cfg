@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand, ValueHint};
-use lamzu::{Atlantis, Mouse, Profile};
+use lamzu::{Atlantis, Mouse, Product, Profile};
+use serde::Serialize;
 use std::fs::File;
 use std::io::{self, stdin, Read};
 use std::path::PathBuf;
@@ -8,6 +9,10 @@ use std::path::PathBuf;
 #[command(name = "lamzu")]
 #[command(about = "Lamzu mouse configuration tool", long_about = None)]
 struct Cli {
+    /// Use a specific USB device by product ID (e.g. f50d)
+    #[arg(short, long)]
+    device: Option<String>,
+
     /// Force using untested devices
     #[arg(short, long)]
     force: bool,
@@ -18,6 +23,13 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    /// List compatible devices
+    List {
+        /// Output in JSON instead of RON
+        #[arg(short, long)]
+        json: bool,
+    },
+
     /// Read profile(s) from mouse and print
     Get {
         /// Output profile(s) in JSON instead of RON
@@ -68,19 +80,42 @@ enum Command {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
-    let atlantis = Atlantis::connect(args.force).inspect_err(|e| match e {
-        lamzu::Error::NoDevice => {
-            eprintln!("No compatible devices found.");
-        }
-        lamzu::Error::UntestedDevice => {
-            eprintln!(concat!(
-                "No devices that have been tested with this tool have been found. ",
-                "A device has been detected that may work, but has not been tested. ",
-                "Use the `--force` to use untested devices. Use at your own risk."
-            ));
-        }
-        _ => {}
-    })?;
+    let devices = if let Some(pid_str) = &args.device {
+        let pid =
+            u16::from_str_radix(pid_str, 16).map_err(|_| "Invalid USB product ID".to_string())?;
+        lamzu::devices_by_pid(pid)?
+    } else {
+        lamzu::devices()?
+    };
+
+    if let Command::List { json } = args.command {
+        let list: Vec<_> = devices
+            .iter()
+            .map(|(device, product)| {
+                let info = device.get_device_info().unwrap();
+                ListedDevice {
+                    pid: format!("{:04x}", info.product_id()),
+                    product: product.clone(),
+                }
+            })
+            .collect();
+        print_serialized(&list, json)?;
+        return Ok(());
+    }
+
+    let Some((device, product)) = devices.into_iter().next() else {
+        return Err("No compatible devices found.".into());
+    };
+
+    if product == Product::Unknown && !args.force {
+        return Err(concat!(
+            "The connected device has not been tested with this tool. Use the",
+            "`--force` flag to enable untested devices at your own risk."
+        )
+        .into());
+    }
+
+    let atlantis = Atlantis::connect(device)?;
 
     eprintln!("You may need to move your mouse to wake it up...");
 
@@ -90,26 +125,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Profiles numbered from 1 for CLI.
                 let profile = atlantis.profile(profile_number.saturating_sub(1))?;
                 eprintln!("Profile {} retrieved from mouse:", profile_number);
-
-                println!(
-                    "{}",
-                    if json {
-                        serde_json::to_string_pretty(&profile)?
-                    } else {
-                        ron::ser::to_string_pretty(&profile, ron::ser::PrettyConfig::default())?
-                    }
-                );
+                print_serialized(&profile, json)?;
             } else {
                 let profiles = atlantis.profiles()?;
                 eprintln!("All profiles retrieved from mouse:");
-                println!(
-                    "{}",
-                    if json {
-                        serde_json::to_string_pretty(&profiles)?
-                    } else {
-                        ron::ser::to_string_pretty(&profiles, ron::ser::PrettyConfig::default())?
-                    }
-                );
+                print_serialized(&profiles, json)?;
             }
         }
 
@@ -167,6 +187,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}", atlantis.battery_percentage()?);
             }
         }
+
+        Command::List { .. } => {
+            unreachable!("I don't know how you got here...");
+        }
     }
 
     Ok(())
@@ -187,4 +211,25 @@ fn get_file_arg_or_stdin(file: Option<PathBuf>, arg: Option<String>) -> io::Resu
     };
 
     Ok(profile_text)
+}
+
+fn print_serialized<T: Serialize>(
+    output: &T,
+    json: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!(
+        "{}",
+        if json {
+            serde_json::to_string_pretty(&output)?
+        } else {
+            ron::ser::to_string_pretty(&output, ron::ser::PrettyConfig::default())?
+        }
+    );
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct ListedDevice {
+    pid: String,
+    product: Product,
 }

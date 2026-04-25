@@ -1,6 +1,7 @@
 mod atlantis;
 pub use atlantis::Atlantis;
 mod device;
+pub use device::{devices, devices_by_pid, identify, Product};
 mod error;
 pub use error::Error;
 pub mod profile;

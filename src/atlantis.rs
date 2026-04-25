@@ -1,12 +1,11 @@
 mod hid;
 use hid::*;
 
-use crate::device::{device_compatibility, Compatibility, Product};
 use crate::profile::{
     Action, Button, Color, KeyEvent, Macro, MacroEvent, MacroMode, Profile, Resolution,
 };
-use crate::Mouse;
-use hidapi::{HidApi, HidDevice};
+use crate::{identify, Mouse, Product};
+use hidapi::HidDevice;
 use keycode::{KeyMap, KeyMappingId, KeyModifiers, KeyState};
 use std::collections::HashMap;
 use std::ops::{RangeBounds, RangeInclusive};
@@ -100,33 +99,10 @@ pub struct Atlantis {
 }
 
 impl Atlantis {
-    /// Connect to the first compatible Atlantis mouse, optionally accepting
-    /// untested mice.
-    pub fn connect(force: bool) -> crate::Result<Self> {
-        let api = HidApi::new()?;
-        let device_compat = device_compatibility(&api)
-            .into_iter()
-            .reduce(|acc, compat| match acc {
-                Compatibility::Tested(_, _) => acc,
-                Compatibility::Untested(_) => match compat {
-                    Compatibility::Tested(_, _) => compat,
-                    _ => acc,
-                },
-                Compatibility::Incompatible(_) => compat,
-            })
-            .ok_or(crate::Error::NoDevice)?;
-
-        match device_compat {
-            Compatibility::Tested(device, product) => Ok(Self::new(device, product)),
-            Compatibility::Untested(device) => {
-                if force {
-                    Ok(Self::new(device, Product::default()))
-                } else {
-                    Err(crate::Error::UntestedDevice)
-                }
-            }
-            Compatibility::Incompatible(_) => Err(crate::Error::NoDevice),
-        }
+    /// Attempt to connect to an Atlantis USB HID device.
+    pub fn connect(device: HidDevice) -> crate::Result<Self> {
+        let product = identify(&device)?.ok_or(crate::Error::Incompatible)?;
+        Ok(Self::new(device, product))
     }
 
     fn new(device: HidDevice, product: Product) -> Self {

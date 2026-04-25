@@ -12,11 +12,8 @@ pub enum Error {
     #[error("Mouse returned an error code")]
     MouseErrorResponse(u8),
 
-    #[error("No compatible devices found")]
-    NoDevice,
-
-    #[error("Untested device found")]
-    UntestedDevice,
+    #[error("Device is not compatible")]
+    Incompatible,
 
     #[error("No valid response for request")]
     NoResponse,
