@@ -3,7 +3,7 @@
 Lamzu mouse configuration tool for linux.
 
 This CLI tool provides a way to configure Lamzu mice on linux (currently only
-tested on the Atlantis Mini Pro). The configuration protocol has been
+tested on Atlantis / Thorn). The configuration protocol has been
 reverse-engineered from a Lamzu Atlantis Mini Pro, but may work on other Lamzu
 devices.
 
@@ -19,11 +19,9 @@ devices.
 
 ## Disclaimer
 
-This tool is not official Lamzu software, but is instead based on the
-reverse-engineering of the configuration protocol used. As such, you take all
-responsibility for any damages resulting from the use of this tool. Don't blame
-me if your mouse explodes. It is recommended to backup your mouse configuration
-before using this tool.
+This is not official Lamzu software, but is instead based on the
+reverse-engineering of the configuration protocol used. Don't blame me if your
+mouse explodes. Backing up your config would be a good idea.
 
 
 ## Install
@@ -40,11 +38,11 @@ cargo install --git https://github.com/leadsun/lamzu-cfg
 
 ### Supported Devices
 
-`lamzu-cfg` has only been tested with the Lamzu Atlantis Mini Pro, but
-other Lamzu mice may also work. `lamzu-cfg` will notify you if your mouse
-appears to be a compatible but untested model, and will ask you to use the
-`--force` flag to continue. If you then find that your mouse works well with
-`lamzu-cfg`, then feel free to submit an issue to have your mouse marked as
+`lamzu-cfg` has only been tested with Lamzu Atlantis / Thorn mice, but other
+Lamzu mice may also work. `lamzu-cfg` will notify you if your mouse appears to
+be an untested model, and will ask you to use the `--force` flag to continue.
+**Use this flag at your own risk.** If you then find that your mouse works well
+with `lamzu-cfg`, then feel free to submit an issue to have your mouse marked as
 tested.
 
 
@@ -55,24 +53,6 @@ the simplest option to provide this access:
 
 ```sh
 sudo lamzu-cfg get --profile 1
-```
-
-Instead, if you would rather *not* run sketchy code from github as root, you can
-temporarily alter the permissions. For each of the `/dev/hidraw` files that
-`lamzu-cfg` complains about missing permissions for, set the permissions as
-follows:
-
-**Warning: This allows any user to read/write to your USB devices.**
-
-```sh
-sudo chmod o+r,o+w /dev/hidrawX # Replace X with the hidraw numbers printed.
-```
-
-These changes only persist until reboot or device disconnection, but it is still
-recommended to change the permissions back when you're finished:
-
-```sh
-sudo chmod o-r,o-w /dev/hidraw*
 ```
 
 
